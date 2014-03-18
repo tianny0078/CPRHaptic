@@ -6,8 +6,8 @@ using namespace std;
 // Draws a spiral
 void Viewer::draw()
 {
+	/*
 	const float nbSteps = 200.0;
-
 	glBegin(GL_QUAD_STRIP);
 	for (int i=0; i<nbSteps; ++i)
 	{
@@ -26,12 +26,18 @@ void Viewer::draw()
 		glVertex3f(r2*c, alt+0.05f, r2*s);
 	}
 	glEnd();
-
-	
+	*/
+	renderMesh(p_kernel->p_mesh);
+	displayText();
 }
 
 int Viewer::initHaptic()
 {
+	HapticLoopOn = true;
+	SimulationFinished = false;
+	Kx = 60;
+	Ky = 60;
+	Kz = 60;
 
 	// required to change asynchronous operation mode
 	dhdEnableExpertMode ();
@@ -57,6 +63,8 @@ int Viewer::initHaptic()
 	return 0;
 }
 
+
+
 void Viewer::MatTranspose (const double a[3][3],
 	double       m[3][3])
 {
@@ -78,7 +86,7 @@ void*
 	cVector3d forceGlobal[2];
 
 	// start haptic simulation
-	SimulationOn       = true;
+	HapticLoopOn       = true;
 	SimulationFinished = false;
 
 	// start with no force
@@ -101,7 +109,7 @@ void*
 	// enable force
 	dhdEnableForce (DHD_ON);
 	// main haptic simulation loop
-	while (viewer->SimulationOn) {
+	while (viewer->HapticLoopOn) {
 
 		dhdGetPosition (&px, &py, &pz);
 
@@ -110,7 +118,7 @@ void*
 		// retrieve joint angles
 		if (dhdGetPosition (&px, &py, &pz) < DHD_NO_ERROR) {
 			printf ("error: cannot get joint angles (%s)\n", dhdErrorGetLastStr());
-			viewer->SimulationOn = false;
+			viewer->HapticLoopOn = false;
 		}
 
 		// compute spring force to apply
@@ -121,6 +129,11 @@ void*
 		fx = (- viewer->Kx * px) - LINEAR_VISCOSITY * vx;
 		fy = (- viewer->Ky * py) - LINEAR_VISCOSITY * vy;
 		fz = (- viewer->Kz * pz) - LINEAR_VISCOSITY * vz;
+
+		if (fz > 0.0)		
+			viewer->F = (-0.1) * fz;
+		else
+			viewer->F = 0.0;
 		//}
 		//else
 		//{
@@ -132,19 +145,19 @@ void*
 		// retrieve joint angles
 		if (dhdGetDeltaJointAngles (&j0, &j1, &j2) < DHD_NO_ERROR) {
 			printf ("error: cannot get joint angles (%s)\n", dhdErrorGetLastStr());
-			viewer->SimulationOn = false;
+			viewer->HapticLoopOn = false;
 		}
 
 		// compute jacobian
 		if (dhdDeltaJointAnglesToJacobian (j0, j1, j2, J) < DHD_NO_ERROR) {
 			printf ("error: cannot compute jacobian (%s)\n", dhdErrorGetLastStr());
-			viewer->SimulationOn = false;
+			viewer->HapticLoopOn = false;
 		}
 
 		// compute joint torques required for gravity compensation
 		if (dhdDeltaGravityJointTorques (j0, j1, j2, &g0, &g1, &g2) < DHD_NO_ERROR) {
 			printf ("error: cannot compute gravity compensation joint torques (%s)\n", dhdErrorGetLastStr());
-			viewer->SimulationOn = false;
+			viewer->HapticLoopOn = false;
 		}
 
 		// compute joint torques Q = ((J)T) * F
@@ -161,7 +174,7 @@ void*
 		// apply joint torques
 		if ((sat = dhdSetDeltaJointTorques (q0, q1, q2)) < DHD_NO_ERROR) {
 			printf ("error: cannot set joint torques (%s)\n", dhdErrorGetLastStr());
-			viewer->SimulationOn = false;
+			viewer->HapticLoopOn = false;
 		}
 
 		// display refresh rate and position at 10Hz
@@ -176,11 +189,12 @@ void*
 			// write down position
 			if (dhdGetPosition (&px, &py, &pz) < 0) {
 				printf ("error: cannot read position (%s)\n", dhdErrorGetLastStr());
-				viewer->SimulationOn = false;
+				viewer->HapticLoopOn = false;
 			}
 			if (sat == DHD_MOTOR_SATURATED) printf ("[*] ");
 			else                            printf ("[-] ");
-			printf ("q = (%+0.03f, %+0.03f, %+0.03f) [Nm]  |  freq = %0.02f [kHz]       \r", q0, q1, q2, freq);
+				//printf ("q = (%+0.03f, %+0.03f, %+0.03f) [Nm]  |  freq = %0.02f [kHz]       \r", q0, q1, q2, freq);
+				printf ("q = (%+0.03f, %+0.03f, %+0.03f) [Nm]  |  freq = %0.02f [kHz]       \r", fx, fy, fz, freq);
 			
 			//test for exit condition
 			//if (dhdGetButtonMask()) spring = true;
@@ -221,21 +235,33 @@ void Viewer::startSimulation()
 	sp.sched_priority = 10;
 	pthread_setschedparam (handle, SCHED_RR, &sp);
 #endif
+
+// create a high priority haptic thread
+#if defined(WIN32) || defined(WIN64)
+	DWORD ThreadId_simulator;
+	CreateThread (NULL, 0, (LPTHREAD_START_ROUTINE)(VisualLoop), this, NULL, &ThreadId_simulator);
+	SetThreadPriority(&ThreadId_simulator, THREAD_PRIORITY_ABOVE_NORMAL);
+#else
+	pthread_t handle;
+	pthread_create (&handle, NULL, HapticsLoop, NULL);
+	struct sched_param sp;
+	memset (&sp, 0, sizeof(struct sched_param));
+	sp.sched_priority = 10;
+	pthread_setschedparam (handle, SCHED_RR, &sp);
+#endif
+
 }
 
 void Viewer::init()
 {
-	SimulationOn = true;
-	SimulationFinished = false;
-	Kx = 60;
-	Ky = 60;
-	Kz = 60;
 	//init haptic
 	initHaptic();
+	//init visual
+	initVisual();
 	startSimulation();
 	// Restore previous viewer state.
 	restoreStateFromFile();
-
+	
 	// Opens help window
 	//help();
 }
@@ -262,8 +288,10 @@ QString Viewer::helpString() const
 
 void Viewer::displayText()
 {
-	//qglColor(foregroundColor());
-	//glDisable(GL_LIGHTING);
+	qglColor(foregroundColor());
+	glDisable(GL_LIGHTING);
+	QFont sansFont("Times", 14, QFont::Bold);
+	drawText(20,20, "Push down in the center of the chest 2 inches 30 times. Pump hard and fast at the rate of at least 100 per minute, faster than once per second.", sansFont);
 	//drawText(10,height()-30, "TRANSLATION :");
 	//displayDir(transDir, 190, height()-30, 'G');
 	//displayType(constraints[activeConstraint]->translationConstraintType(), 10, height()-60, 'T');
@@ -278,7 +306,7 @@ void Viewer::displayText()
 	//case 1 : drawText(20,20, "Constraint direction defined w/r to CAMERA (SPACE)"); break;
 	//}
 
-	//glEnable(GL_LIGHTING);
+	glEnable(GL_LIGHTING);
 }
 
 void Viewer::keyPressEvent(QKeyEvent *e)
@@ -321,8 +349,9 @@ void Viewer::keyPressEvent(QKeyEvent *e)
 	}	
 	else if ((e->key()==Qt::Key_Q) && (modifiers==Qt::NoButton))
 	{
-		SimulationOn = false;
+		HapticLoopOn = false;
 		while (!SimulationFinished) dhdSleep (0.01);
+		VisualLoopOn = false;
 		exit(0);
 	}
 	// ... and so on with other else/if blocks.
@@ -333,6 +362,320 @@ void Viewer::keyPressEvent(QKeyEvent *e)
 
 Viewer::~Viewer()
 {
-	SimulationOn = false;
+	HapticLoopOn = false;
 	while (!SimulationFinished) dhdSleep (0.01);
+	VisualLoopOn = false;
+}
+
+int Viewer::initVisual()
+{
+	//render
+	F = 0.0;
+	VisualLoopOn = true;
+	p_kernel = new Kernel;
+	if (!loadMesh())
+		printf("Error! cannot load mesh!");
+	if(!initShapeMatching()) 
+		printf("Error! Shape Matching cannot be initialized!");
+	return 1;
+}
+
+void Viewer::renderMesh(const Mesh* m)
+{
+	glColor3f(0.0, 162.0/255.0, 232.0/255.0);
+	vector<Face>::iterator fi = p_kernel->p_mesh->face_list.begin();
+	for (; fi!=p_kernel->p_mesh->face_list.end(); ++fi)
+	{
+		Vector3d n0, n1, n2, n01, n02, n;
+
+		n0 = fi->node0->coordinate + fi->node0->displacement;
+		n1 = fi->node1->coordinate + fi->node1->displacement;
+		n2 = fi->node2->coordinate + fi->node2->displacement;
+
+		n01 = n0 - n1;
+		n02 = n0 - n2;
+
+		n = n01.cross(n02);
+		n.normalize();
+		fi->normal = n;
+
+		//display a line mesh
+		//glPolygonMode(GL_FRONT_AND_BACK, GL_POINT);
+		glBegin(GL_TRIANGLES);
+		glNormal3d(n[0], n[1], n[2]);
+		glVertex3d(n0[0], n0[1], n0[2]);
+		glVertex3d(n1[0], n1[1], n1[2]);
+		glVertex3d(n2[0], n2[1], n2[2]);
+		glEnd();
+	}
+}
+
+bool Viewer::loadMesh()
+{
+	p_kernel->p_mesh->read("human_hand.obj");
+	p_kernel->flag_mesh_ready = true;
+
+	if (p_kernel->p_mesh->flag_normalized)
+	{
+		p_kernel->mark_preprocess4Voxel(p_kernel->p_mesh, p_kernel->p_voxel, p_kernel->grid_density);
+	}
+	else
+	{
+		p_kernel->p_mesh->scale();
+		p_kernel->mark_preprocess4Voxel(p_kernel->p_mesh, p_kernel->p_voxel, p_kernel->grid_density);
+	}
+	printf("read %d nodes and %d faces", p_kernel->p_mesh->number_node, p_kernel->p_mesh->number_face);
+	
+	
+	if (!loadLevel())
+		return false;
+
+	if (!loadAnchor())
+		return false;
+
+	if (!loadConstraints())
+		return false;
+	
+	return true;
+}
+
+bool Viewer::loadLevel()
+{
+	//load level info
+	p_kernel->clearAllLevel();
+	ifstream ifs("level.txt");
+	char line[1024];
+	char * token;
+	while (!ifs.eof())
+	{
+		ifs.getline(line, 1024);
+		if (strlen(line) == 0)
+			break;
+		token = strtok(line, " ");
+		int level = atoi(token);
+		token = strtok(NULL, " ");
+		int d = atoi(token);
+		cout << level << " " << d << endl;
+		if(level > 0)
+		{
+			p_kernel->addLevel();
+		}
+		p_kernel->generateVoxMesh4Level(level++, d);
+	}
+
+	return true;
+}
+
+bool Viewer::loadAnchor()
+{
+	string filename;
+	if (p_kernel->level_list.size() == 1)
+		filename = "anchor4naive.txt";
+	else
+		filename = "anchor.txt";
+	ifstream ifs(filename);
+	char line[1024];
+	char * token;
+	while (!ifs.eof())
+	{
+		ifs.getline(line, 1024);
+		if (strlen(line) == 0)
+			break;
+		token = strtok(line, " ");
+		int level = atoi(token);
+		token = strtok(NULL, " ");
+		int z = atoi(token);
+		token = strtok(NULL, " ");
+		int y = atoi(token);
+		token = strtok(NULL, " ");
+		int x = atoi(token);
+		token = strtok(NULL, " ");
+		int nodei = atoi(token);
+		//traverse level vox, find the vox, and find corresponding node
+		vector<Vox>::iterator vi = p_kernel->level_list[level]->voxmesh_level->vox_list.begin();
+		for (; vi != p_kernel->level_list[level]->voxmesh_level->vox_list.end(); vi++)
+		{
+			if (z == vi->coord_grid(0) && y == vi->coord_grid(1) && x == vi->coord_grid(2))
+			{
+				Node * temp = NULL;
+				if (nodei == 0)
+					temp = vi->node_0;
+				else if (nodei == 1)
+					temp = vi->node_1;
+				else if (nodei == 2)
+					temp = vi->node_2;
+				else if (nodei == 3)
+					temp = vi->node_3;
+				else if (nodei == 4)
+					temp = vi->node_4;
+				else if (nodei == 5)
+					temp = vi->node_5;
+				else if (nodei == 6)
+					temp = vi->node_6;
+				else if (nodei == 7)
+					temp = vi->node_7;
+				temp->flag_anchor_node = true;
+				p_kernel->level_list[level]->voxmesh_level->anchor_node_list.push_back(temp);
+
+				break;
+			}
+		}
+	}
+	char msg[1024];
+	int cx = 0;
+	for (int i = 0; i < p_kernel->level_list.size(); i++)
+	{
+		cx += sprintf(msg+cx, "Level %d:  %d anchor nodes have been chosen\n", i, p_kernel->level_list[i]->voxmesh_level->anchor_node_list.size());
+	}
+	printf(msg);
+
+	return true;
+}
+
+bool Viewer::loadConstraints()
+{
+	string filename;
+	if (p_kernel->level_list.size() == 1)
+		filename = "constraints4naive.txt";
+	else
+		filename = "constraints.txt";
+	ifstream ifs(filename);
+	char line[1024];
+	char * token;
+	while (!ifs.eof())
+	{
+		ifs.getline(line, 1024);
+		if (strlen(line) == 0)
+			break;
+		token = strtok(line, " ");
+		int level = atoi(token);
+		token = strtok(NULL, " ");
+		int z = atoi(token);
+		token = strtok(NULL, " ");
+		int y = atoi(token);
+		token = strtok(NULL, " ");
+		int x = atoi(token);
+		token = strtok(NULL, " ");
+		int nodei = atoi(token);
+		//traverse level vox, find the vox, and find corresponding node
+		vector<Vox>::iterator vi = p_kernel->level_list[level]->voxmesh_level->vox_list.begin();
+		for (; vi != p_kernel->level_list[level]->voxmesh_level->vox_list.end(); vi++)
+		{
+			if (z == vi->coord_grid(0) && y == vi->coord_grid(1) && x == vi->coord_grid(2))
+			{
+				Node * temp = NULL;
+				if (nodei == 0)
+					temp = vi->node_0;
+				else if (nodei == 1)
+					temp = vi->node_1;
+				else if (nodei == 2)
+					temp = vi->node_2;
+				else if (nodei == 3)
+					temp = vi->node_3;
+				else if (nodei == 4)
+					temp = vi->node_4;
+				else if (nodei == 5)
+					temp = vi->node_5;
+				else if (nodei == 6)
+					temp = vi->node_6;
+				else if (nodei == 7)
+					temp = vi->node_7;
+				temp->flag_constraint_node = true;
+				p_kernel->level_list[level]->voxmesh_level->constraint_node_list.push_back(temp);
+				for (int k=0; k < temp->duplicates.size(); ++k)
+				{
+					temp->duplicates[k]->flag_constraint_node = true;
+					temp->prescribed_position = temp->target_position;
+					temp->prescribed_preposition = temp->target_position;
+				}
+				for(int j=0; j < temp->incident_cluster.size(); ++j)
+				{
+					temp->incident_cluster[j]->flag_constrained = true;
+					temp->incident_cluster[j]->constraint_node = NULL;
+					p_kernel->level_list[level]->voxmesh_level->constraint_cluster_list.push_back(temp->incident_cluster[j]);
+				}
+				break;
+			}
+		}
+	}
+	int l = p_kernel->level_list.size() - 1;
+	for(int i = 0; i < p_kernel->level_list.size(); i ++)
+	{
+		int size_k = p_kernel->level_list[l]->voxmesh_level->constraint_node_list.size();
+		Vector3d sum = Vector3d::Zero();
+		for(int k = 0; k < size_k; k ++)
+		{
+			sum += p_kernel->level_list[l]->voxmesh_level->constraint_node_list[k]->prescribed_position;
+		}
+		p_kernel->level_list[i]->voxmesh_level->constraint_center = sum / size_k;
+		p_kernel->level_list[i]->voxmesh_level->constraint_displacement.clear();
+		for(int j = 0; j < p_kernel->level_list[i]->voxmesh_level->constraint_node_list.size(); j++)
+		{
+			Vector3d displacement = p_kernel->level_list[i]->voxmesh_level->constraint_node_list[j]->coordinate 
+				+ p_kernel->level_list[i]->voxmesh_level->constraint_node_list[j]->displacement - p_kernel->level_list[i]->voxmesh_level->constraint_center;
+			p_kernel->level_list[i]->voxmesh_level->constraint_displacement.push_back(displacement);
+		}
+	}
+	p_kernel->constraint_first = p_kernel->level_list[l]->voxmesh_level->constraint_center;
+	char msg[1024];
+	int cx = 0;
+	for (int i = 0; i < p_kernel->level_list.size(); i++)
+	{
+		cx += sprintf(msg+cx, "Level %d:  %d constraint nodes have been chosen\n", i, p_kernel->level_list[i]->voxmesh_level->constraint_node_list.size());
+	}
+	printf(msg);
+
+	return true;
+}
+
+bool Viewer::initShapeMatching()
+{
+	for(int i = 0; i < p_kernel->level_list.size(); i ++)
+	{
+		vector<Cluster>::iterator ci;
+		for( ci = p_kernel->level_list[i]->voxmesh_level->cluster_list.begin(); ci != p_kernel->level_list[i]->voxmesh_level->cluster_list.end(); ci++)
+		{
+			ci->kappa = 0.5;
+		}
+	}
+	p_kernel->used_simulator = Kernel::SHAPE_MATCHING;
+	p_kernel->initializeSimulator();
+
+	return true;
+}
+
+void * Viewer::VisualLoop(void * pUserData)
+{
+	Viewer * viewer = (Viewer *)pUserData;
+	//viewer->p_kernel->flag_redo = true;
+	//Vector3d force = Vector3d(0.0, 0.0, 0.5);
+	//for (int i = 0; i < 100; i++)
+	//	viewer->p_kernel->force_list.push_back(force);
+	//force = Vector3d(0.0, 0.0, -0.5);
+	//for (int i = 0; i < 100; i++)
+	//	viewer->p_kernel->force_list.push_back(force);
+	while (viewer->VisualLoopOn)
+	{
+		viewer->setForce();
+		if (!viewer->p_kernel->simulateNextStep())
+		{
+			viewer->VisualLoopOn = false;
+		}
+		viewer->update();
+	}
+	return NULL;
+}
+
+void Viewer::setForce()
+{
+	int size_k = p_kernel->level_list[0]->voxmesh_level->constraint_node_list.size();
+	Vector3d f(0.0, 0.0, F);
+	for(int k = 0; k < size_k; k ++)
+	{
+		p_kernel->level_list[0]->voxmesh_level->constraint_node_list[k]->force = f;
+		for(int i=0; i<p_kernel->level_list[0]->voxmesh_level->constraint_node_list[k]->duplicates.size(); ++i)
+		{
+			p_kernel->level_list[0]->voxmesh_level->constraint_node_list[k]->duplicates[i]->force = f;
+		}
+	}
 }
