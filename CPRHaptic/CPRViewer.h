@@ -6,9 +6,12 @@
 #include "mesh.h"
 #include "kernel.h"
 #include <QTimer>
+#include <NuiApi.h>
+#include "PointCloudMap.h"
+#include "NormalsMap.h"
 
 #define REFRESH_INTERVAL  0.1   // sec
-#define LINEAR_VISCOSITY   20.0   //  N/(m/s)
+#define LINEAR_VISCOSITY   50.0   //  N/(m/s)
 
 class Viewer : public QGLViewer
 {
@@ -18,8 +21,11 @@ protected :
 	virtual QString helpString() const;
 	virtual void keyPressEvent(QKeyEvent *e);
 
+	int initGL();
 	int initHaptic();
 	int initVisual();
+	int initNui();
+	bool UpdateDepthFrame();
 
 	void startSimulation();
 	void displayText();
@@ -34,16 +40,31 @@ protected :
 	bool initShapeMatching();
 	void setForce();
 	void renderMesh(const Mesh* m);
-protected:
+	void renderMesh4Kinect();
+	void renderPointCloud4Kinect();
+	void renderSpiral();
+
+	void updateKinectMesh();
+	void updateDeformableMesh();
+private:
 	bool wireframe_;
-	QTimer simulation_timer;
+	INuiSensor* p_nui;
+	HANDLE h_depth_stream;
 public:
+	bool enableKinect;
+	bool NewDepth;
+	bool KinectInitialized;
 	bool HapticLoopOn;
 	bool VisualLoopOn;
 	bool SimulationFinished;
 	double Kx, Ky, Kz;
 	double F;
+	double Stiffness;
 	Kernel * p_kernel;
+	USHORT*		m_depth_buffer;
+
+	PointCloudMap m_cloud_map;
+	NormalsMap	m_normal_map;
 public:
 	~Viewer();
 	static void * HapticsLoop (void* pUserData);
