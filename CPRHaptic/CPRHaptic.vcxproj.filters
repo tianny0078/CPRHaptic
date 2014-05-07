@@ -33,12 +33,6 @@
     <ClCompile Include="kernel.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="NormalsMap.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="PointCloudMap.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CPRViewer.h">
@@ -51,12 +45,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="performanceCounter.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="NormalsMap.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="PointCloudMap.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

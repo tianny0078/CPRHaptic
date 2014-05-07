@@ -81,15 +81,15 @@
       <Optimization>Disabled</Optimization>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
-      <AdditionalIncludeDirectories>C:\Yuan Tian\opencv\build\include;$(QTDIR)\include\QtCore;$(QTDIR)\include\QtGui;$(QTDIR)\include\QtOpenGL;$(QTDIR)\include\QtXml;$(QTDIR)\include;C:\Yuan Tian\libQGLViewer-2.5.1\libQGLViewer-2.5.1\QGLViewer;$(QTDIR)\include\ActiveQt;debug;c:\Qt\4.8.2\mkspecs\win32-msvc2010;C:\Program Files\Force Dimension\sdk-3.5.1\include;.\eigen;$(KINECTSDK10_DIR)\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(QTDIR)\include\QtCore;$(QTDIR)\include\QtGui;$(QTDIR)\include\QtOpenGL;$(QTDIR)\include\QtXml;$(QTDIR)\include;C:\Yuan\libQGLViewer-2.5.1\libQGLViewer-2.5.1\QGLViewer;$(QTDIR)\include\ActiveQt;debug;c:\Qt\4.8.2\mkspecs\win32-msvc2010;C:\Program Files\Force Dimension\sdk-3.5.1\include;.\eigen;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <TreatWChar_tAsBuiltInType>false</TreatWChar_tAsBuiltInType>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <OutputFile>$(OutDir)\$(ProjectName).exe</OutputFile>
-      <AdditionalLibraryDirectories>C:\Yuan Tian\opencv\build\x64\vc10\lib;C:\Yuan Tian\libQGLViewer-2.5.1\libQGLViewer-2.5.1\QGLViewer\debug;$(QTDIR)\lib;C:\Program Files\Force Dimension\sdk-3.5.1\lib;C:\Program Files\Microsoft SDKs\Kinect\v1.8\lib\amd64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\Yuan\libQGLViewer-2.5.1\libQGLViewer-2.5.1\QGLViewer\debug;$(QTDIR)\lib;C:\Program Files\Force Dimension\sdk-3.5.1\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>opencv_imgproc248d.lib;opencv_highgui248d.lib;opencv_core248d.lib;kinect10.lib;dhdms64.lib;QGLViewerd2.lib;qtmaind.lib;QtCored4.lib;QtGuid4.lib;QtOpenGLd4.lib;opengl32.lib;glu32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>dhdms64.lib;QGLViewerd2.lib;qtmaind.lib;QtCored4.lib;QtGuid4.lib;QtOpenGLd4.lib;opengl32.lib;glu32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <IgnoreSpecificDefaultLibraries>msvcrt.lib;</IgnoreSpecificDefaultLibraries>
     </Link>
   </ItemDefinitionGroup>
@@ -132,23 +132,19 @@
     <ClCompile Include="kernel.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="mesh.cpp" />
-    <ClCompile Include="NormalsMap.cpp" />
-    <ClCompile Include="PointCloudMap.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CPRViewer.h" />
     <ClInclude Include="kernel.h" />
     <ClInclude Include="mesh.h" />
-    <ClInclude Include="NormalsMap.h" />
     <ClInclude Include="performanceCounter.h" />
-    <ClInclude Include="PointCloudMap.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
   <ProjectExtensions>
     <VisualStudio>
-      <UserProperties UicDir=".\GeneratedFiles" MocDir=".\GeneratedFiles\$(ConfigurationName)" MocOptions="" RccDir=".\GeneratedFiles" lupdateOnBuild="0" lupdateOptions="" lreleaseOptions="" QtVersion_x0020_Win32="4.8.2" QtVersion_x0020_x64="4.8.2" />
+      <UserProperties UicDir=".\GeneratedFiles" MocDir=".\GeneratedFiles\$(ConfigurationName)" MocOptions="" RccDir=".\GeneratedFiles" lupdateOnBuild="0" lupdateOptions="" lreleaseOptions="" QtVersion_x0020_Win32="4.8.2" QtVersion_x0020_x64="QT4.8.2" />
     </VisualStudio>
   </ProjectExtensions>
 </Project>

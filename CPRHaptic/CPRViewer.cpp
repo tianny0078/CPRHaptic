@@ -1,19 +1,7 @@
 #include "CPRViewer.h"
-
 #include <QKeyEvent>
-#include <opencv2\core\core.hpp>
-#include <opencv2\imgproc\imgproc.hpp>
-#include <opencv2\highgui\highgui.hpp>
-using namespace cv;
-
-
 using namespace std;
 
-#define DEPTH_IMAGE_WIDTH 320
-#define DEPTH_IMAGE_HEIGHT 240
-
-#define POINT_CLOUD_SCALE 1
-#define CLUSTER_DISTANCE 0.04f*POINT_CLOUD_SCALE
 
 // Draws a spiral
 void Viewer::draw()
@@ -32,9 +20,6 @@ void Viewer::draw()
 	
 	renderMesh(p_kernel->p_mesh);
 	//displayText();
-	if (enableKinect)
-		renderMesh4Kinect();
-	//renderPointCloud4Kinect();
 
 }
 
@@ -270,11 +255,11 @@ void Viewer::startSimulation()
 	pthread_setschedparam (handle, SCHED_RR, &sp);
 #endif
 
-// create a high priority haptic thread
+// create a high priority visual thread
 #if defined(WIN32) || defined(WIN64)
-	DWORD ThreadId_simulator;
-	CreateThread (NULL, 0, (LPTHREAD_START_ROUTINE)(VisualLoop), this, NULL, &ThreadId_simulator);
-	SetThreadPriority(&ThreadId_simulator, THREAD_PRIORITY_ABOVE_NORMAL);
+	DWORD ThreadId0;
+	CreateThread (NULL, 0, (LPTHREAD_START_ROUTINE)(VisualLoop), this, NULL, &ThreadId0);
+	SetThreadPriority(&ThreadId0, THREAD_PRIORITY_ABOVE_NORMAL);
 #else
 	pthread_t handle;
 	pthread_create (&handle, NULL, HapticsLoop, NULL);
@@ -312,14 +297,10 @@ int Viewer::initGL()
 
 void Viewer::init()
 {
-	enableKinect = false;
 	//init GL
 	//initGL();
 	//init haptic
 	initHaptic();
-	//init kinect
-	if (enableKinect)
-		initNui();
 	//init visual
 	initVisual();
 
@@ -431,16 +412,6 @@ Viewer::~Viewer()
 	while (!SimulationFinished) dhdSleep (0.01);
 	VisualLoopOn = false;
 
-	//Exit!! Clean all up.
-	if (enableKinect)
-	{
-		if (p_nui != NULL)
-		{
-			p_nui->NuiShutdown();
-			p_nui->Release();
-			p_nui = NULL;
-		}
-	}
 }
 
 int Viewer::initVisual()
@@ -737,8 +708,6 @@ void * Viewer::VisualLoop(void * pUserData)
 
 	while (viewer->VisualLoopOn)
 	{
-		if (viewer->enableKinect)
-			viewer->updateKinectMesh();
 		viewer->updateDeformableMesh();
 		viewer->update();
 	}
@@ -756,193 +725,6 @@ void Viewer::setForce()
 		{
 			p_kernel->level_list[0]->voxmesh_level->constraint_node_list[k]->duplicates[i]->force = f;
 		}
-	}
-}
-
-int Viewer::initNui()
-{
-	KinectInitialized = false;
-	int count = 0;  
-	HRESULT hr;  
-
-	hr = NuiGetSensorCount(&count);  
-	if (count <= 0)  
-	{  
-		cout<<"No kinect sensor was found!!"<<endl;  
-		goto Final;  
-	}  
-
-	hr = NuiCreateSensorByIndex(0,&p_nui);  
-	if (FAILED(hr))  
-	{  
-		cout<<"Create Kinect Device Failed!!"<<endl;  
-		goto Final;  
-	}  
-
-	//We only just need depth data.  
-	hr = p_nui->NuiInitialize(NUI_INITIALIZE_FLAG_USES_DEPTH);  
-
-	if (FAILED(hr))  
-	{  
-		cout<<"Initialize Kinect Failed!!"<<endl;  
-		goto Final;  
-	}  
-
-	//Resolution of 320x240 is good enough to reconstruct a 3D model.  
-	hr = p_nui->NuiImageStreamOpen(NUI_IMAGE_TYPE_DEPTH,NUI_IMAGE_RESOLUTION_320x240,0,2,NULL,&h_depth_stream);  
-	if (FAILED(hr))  
-	{  
-		cout<<"Open Streams Failed!!"<<endl;  
-		goto Final;  
-	}  
-  
-	KinectInitialized = true;
-	cout << "kinect initialized ..... done" << endl;
-	//Allocate memory to store depth data.
-	m_depth_buffer = new USHORT[DEPTH_IMAGE_WIDTH*DEPTH_IMAGE_HEIGHT];
-
-	//Allocate memeroy for the point cloud
-	m_cloud_map.Resize(DEPTH_IMAGE_WIDTH,DEPTH_IMAGE_HEIGHT);		
-	m_normal_map.Resize(DEPTH_IMAGE_WIDTH,DEPTH_IMAGE_HEIGHT);
-
-	return 1;
-
-	Final:
-	if (FAILED(hr))  
-	{  
-		if (p_nui != NULL)  
-		{  
-			p_nui->NuiShutdown();  
-			p_nui->Release();  
-			p_nui = NULL;  
-		}
-		return 0;
-	}
-
-}
-
-bool Viewer::UpdateDepthFrame()
-{
-	if (!KinectInitialized)
-		return false;
-
-	HRESULT hr;
-	NUI_IMAGE_FRAME image_frame = {0};
-	NUI_LOCKED_RECT locked_rect = {0};
-
-	hr = p_nui->NuiImageStreamGetNextFrame(h_depth_stream,0,&image_frame);
-
-	//If there's no new frame, we will return immediately.
-	if (SUCCEEDED(hr))
-	{
-		hr = image_frame.pFrameTexture->LockRect(0,&locked_rect,NULL,0);
-		if (SUCCEEDED(hr))
-		{
-			//Copy depth data to our own buffer.
-			memcpy(m_depth_buffer,locked_rect.pBits,locked_rect.size);
-
-			image_frame.pFrameTexture->UnlockRect(0);
-		}
-		//Release frame.
-		p_nui->NuiImageStreamReleaseFrame(h_depth_stream,&image_frame);
-	}
-
-	if (SUCCEEDED(hr))return true;
-
-	return false;
-}
-
-void Viewer::renderMesh4Kinect()
-{
-	bool mesh_break = true;
-
-	Vector3d* points_line = m_cloud_map.m_points;
-	Vector3d* points_next_line = m_cloud_map.m_points + DEPTH_IMAGE_WIDTH;
-	Vector3d* normals_line = m_normal_map.m_normals;
-
-	for (int y = 0; y < m_cloud_map.m_height - 1; y++)
-	{
-		for (int x = 0; x < m_cloud_map.m_width; x++)
-		{
-			Vector3d space_point1 = points_line[x];
-			Vector3d space_point2 = points_next_line[x];
-
-			if (abs(space_point1.z()) <= FLT_EPSILON*POINT_CLOUD_SCALE || 
-				abs(space_point2.z()) <= FLT_EPSILON*POINT_CLOUD_SCALE)
-			{
-				if (!mesh_break)
-				{
-					//If there's no point here, the mesh should break.
-					mesh_break = true;
-					glEnd();
-				}
-				continue;
-			}
-
-			if (mesh_break)
-			{
-				//Start connecting points to form mesh.
-				glBegin(GL_TRIANGLE_STRIP);
-				mesh_break = false;
-			}
-
-			//Draw the point and set its normal.
-			glColor3f(0.8,0.8,0.8);
-			glNormal3f(normals_line[x].x(),normals_line[x].y(),normals_line[x].z());
-			glVertex3f(space_point1.x(),space_point1.y(),space_point1.z());
-
-			//Draw the point below the prior one to form a triangle.
-			glColor3f(0.8,0.8,0.8);
-			glVertex3f(space_point2.x(),space_point2.y(),space_point2.z());
-		}
-		if (!mesh_break) 
-		{
-			//We break the mesh at the end of the line,.
-			glEnd();
-			mesh_break = true;
-		}
-		points_line += DEPTH_IMAGE_WIDTH;
-		points_next_line += DEPTH_IMAGE_WIDTH;
-		normals_line += DEPTH_IMAGE_WIDTH;
-	}
-}
-
-void Viewer::renderPointCloud4Kinect()
-{
-
-	Vector3d* points_line = m_cloud_map.m_points;
-	glBegin(GL_POINTS);
-	for (int y = 0; y < m_cloud_map.m_height - 1; y++)
-	{
-		for (int x = 0; x < m_cloud_map.m_width; x++)
-		{
-			Vector3d space_point1 = points_line[x];
-			glColor3f(1.0, 0.0, 0.0);
-			glVertex3f(space_point1.x(), space_point1.y(), space_point1.z());
-		}
-		points_line += DEPTH_IMAGE_WIDTH;
-	}
-	glEnd();
-}
-
-void Viewer::updateKinectMesh()
-{
-	NewDepth = UpdateDepthFrame();
-	if (NewDepth)
-	{
-		Mat depth_frame = Mat(DEPTH_IMAGE_HEIGHT,DEPTH_IMAGE_WIDTH,CV_16UC1,m_depth_buffer);  
-		//imshow("Depth Frame", depth_frame);
-		medianBlur(depth_frame,depth_frame,5);
-		imshow("Smoothed Depth", depth_frame);
-		//Create a point cloud from the depth frame.
-		m_cloud_map.Create(depth_frame,2000,POINT_CLOUD_SCALE);
-		//Calculate normals for every point in the cloud.
-		m_normal_map.Create(m_cloud_map,CLUSTER_DISTANCE);
-		//Make normal vectors direct toward the camera!
-		m_normal_map.FlipNormalsToVector(Vector3d(0,0,-1));
-
-		cvWaitKey(30);
-		//printf("depth streaming");
 	}
 }
 
