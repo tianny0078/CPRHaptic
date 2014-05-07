@@ -116,15 +116,15 @@
       <DebugInformationFormat>
       </DebugInformationFormat>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
-      <AdditionalIncludeDirectories>C:\Yuan Tian\opencv\build\include;$(QTDIR)\include\QtCore;$(QTDIR)\include\QtGui;$(QTDIR)\include\QtOpenGL;$(QTDIR)\include\QtXml;$(QTDIR)\include;C:\Yuan Tian\libQGLViewer-2.5.1\libQGLViewer-2.5.1\QGLViewer;$(QTDIR)\include\ActiveQt;debug;c:\Qt\4.8.2\mkspecs\win32-msvc2010;.\eigen;C:\Program Files\Force Dimension\sdk-3.5.1\include;$(KINECTSDK10_DIR)\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(QTDIR)\include\QtCore;$(QTDIR)\include\QtGui;$(QTDIR)\include\QtOpenGL;$(QTDIR)\include\QtXml;$(QTDIR)\include;C:\Yuan\libQGLViewer-2.5.1\libQGLViewer-2.5.1\QGLViewer;$(QTDIR)\include\ActiveQt;debug;c:\Qt\4.8.2\mkspecs\win32-msvc2010;.\eigen;C:\Program Files\Force Dimension\sdk-3.5.1\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <TreatWChar_tAsBuiltInType>false</TreatWChar_tAsBuiltInType>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <OutputFile>$(OutDir)\$(ProjectName).exe</OutputFile>
-      <AdditionalLibraryDirectories>C:\Yuan Tian\opencv\build\x64\vc10\lib;C:\Yuan Tian\libQGLViewer-2.5.1\libQGLViewer-2.5.1\QGLViewer\release;$(QTDIR)\lib;C:\Program Files\Force Dimension\sdk-3.5.1\lib;C:\Program Files\Microsoft SDKs\Kinect\v1.8\lib\amd64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>C:\Yuan\libQGLViewer-2.5.1\libQGLViewer-2.5.1\QGLViewer\release;$(QTDIR)\lib;C:\Program Files\Force Dimension\sdk-3.5.1\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>false</GenerateDebugInformation>
-      <AdditionalDependencies>opencv_imgproc248.lib;opencv_highgui248.lib;opencv_core248.lib;kinect10.lib;dhdms64.lib;QGLViewer2.lib;qtmain.lib;QtCore4.lib;QtGui4.lib;QtOpenGL4.lib;opengl32.lib;glu32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>dhdms64.lib;QGLViewer2.lib;qtmain.lib;QtCore4.lib;QtGui4.lib;QtOpenGL4.lib;opengl32.lib;glu32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
